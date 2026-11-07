@@ -1,0 +1,246 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage[hidelinks]{hyperref}
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\E}{\mathbb{E}}
+
+\title{Intro to Reinforcement Learning: Theory Notes}
+\author{ARENA Chapter 2, Section 2.1}
+\date{}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{The Setup: Markov Decision Processes}
+
+An agent interacts with an environment in a loop. In state $s$, the agent takes
+action $a \sim \pi(\cdot \mid s)$. The environment returns a next state
+$s' \sim T(\cdot \mid s, a)$ and a reward $r = R(s, a, s')$.
+
+\begin{itemize}
+  \item \textbf{Markov property:} the next step depends only on the current state
+        and action, not on older history.
+  \item \textbf{Policy $\pi$:} the rule for choosing actions. It can be stochastic,
+        $\pi(a \mid s)$, or deterministic, $a = \pi(s)$.
+  \item \textbf{Trajectory:} $\tau = s_0, a_0, r_1, s_1, a_1, r_2, \ldots$, where
+        action $a_t$ produces reward $r_{t+1}$.
+\end{itemize}
+
+\section{The Goal: Maximize Expected Return}
+
+The \textbf{return} is the discounted sum of future rewards:
+\[
+  G_t = r_{t+1} + \gamma r_{t+2} + \gamma^2 r_{t+3} + \cdots = r_{t+1} + \gamma G_{t+1}.
+\]
+
+\begin{itemize}
+  \item With $\gamma < 1$ and bounded rewards, the sum stays finite.
+  \item A low $\gamma$ makes the agent short-sighted; a high $\gamma$ makes it far-sighted.
+  \item Geometric discounting is time-consistent: each step always discounts by the
+        same factor. This is what gives the recursion above.
+\end{itemize}
+
+\section{Value Functions}
+
+\begin{itemize}
+  \item \textbf{State value:} $V_\pi(s) = \E_\pi[G_t \mid s_t = s]$, the expected return
+        from $s$ when following $\pi$.
+  \item \textbf{Action value:} $Q_\pi(s,a) = \E_\pi[G_t \mid s_t = s, a_t = a]$, the
+        expected return when taking $a$ first and then following $\pi$.
+\end{itemize}
+
+They are related by:
+\[
+  V_\pi(s) = \sum_a \pi(a \mid s)\, Q_\pi(s,a),
+\]
+\[
+  Q_\pi(s,a) = \sum_{s'} T(s' \mid s,a) \big( R(s,a,s') + \gamma V_\pi(s') \big).
+\]
+
+\section{The Bellman Equation}
+
+\textbf{Value now = expected (next reward + discounted value of next state).}
+\[
+  V_\pi(s) = \sum_a \pi(a \mid s) \sum_{s'} T(s' \mid s,a)
+             \big( R(s,a,s') + \gamma V_\pi(s') \big)
+\]
+
+\begin{itemize}
+  \item $\sum_a \pi(a \mid s)$ averages over the agent's choices.
+  \item $\sum_{s'} T(s' \mid s,a)$ averages over the environment's randomness.
+\end{itemize}
+
+For a deterministic policy, the sum over actions disappears:
+\[
+  V_\pi(s) = \sum_{s'} T(s' \mid s,\pi(s))
+             \big( R(s,\pi(s),s') + \gamma V_\pi(s') \big).
+\]
+
+\section{Optimal Policies}
+
+\begin{itemize}
+  \item $\pi_1 \geq \pi_2$ if $V_{\pi_1}(s) \geq V_{\pi_2}(s)$ for \emph{every} state.
+        Some pairs of policies cannot be compared.
+  \item An optimal policy $\pi^*$ is at least as good as every other policy.
+  \item $V^*$ is unique, but several policies can achieve it.
+  \item For $\gamma < 1$, a deterministic optimal policy exists, so a lookup table is
+        enough in tabular problems.
+\end{itemize}
+
+\section{Planning: $T$ and $R$ Known}
+
+\subsection{Policy Evaluation}
+
+\textbf{Numerical.} Start with $\hat{V} = 0$ and apply the Bellman equation as an
+update until
+$\max_s |\hat{V}_{\text{new}}(s) - \hat{V}_{\text{old}}(s)| < \epsilon$.
+
+\textbf{Exact.} For a fixed policy the Bellman equation is linear, so solve it directly:
+\[
+  v = r^\pi + \gamma P^\pi v
+  \quad \Longrightarrow \quad
+  v = (I - \gamma P^\pi)^{-1} r^\pi,
+\]
+where $P^\pi_{s,s'} = T(s' \mid s, \pi(s))$ and
+$r^\pi_s = \sum_{s'} T(s' \mid s, \pi(s))\, R(s, \pi(s), s')$.
+
+\subsection{Policy Improvement}
+
+Act greedily with respect to the current values:
+\[
+  \pi_{\text{new}}(s) = \argmax_a \sum_{s'} T(s' \mid s,a)
+                        \big( R(s,a,s') + \gamma V_\pi(s') \big).
+\]
+
+\subsection{Policy Iteration}
+
+Evaluate $\rightarrow$ improve $\rightarrow$ repeat until the policy stops changing.
+The final policy is optimal.
+
+\section{Learning: $T$ and $R$ Unknown}
+
+The agent cannot compute sums over $T$, so it learns $Q$ from sampled experience
+$(s, a, r, s')$.
+
+\subsection{The TD Update}
+
+\[
+  Q(s,a) \leftarrow Q(s,a) + \alpha \big( \text{target} - Q(s,a) \big)
+\]
+
+\begin{itemize}
+  \item $\alpha$ is the learning rate.
+  \item $\text{target} - Q(s,a)$ is the \textbf{TD error} $\delta$.
+  \item If $s'$ is terminal, the target is just $r$, because no future reward remains.
+\end{itemize}
+
+\subsection{SARSA vs Q-Learning}
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  \textbf{Method} & \textbf{Target} & \textbf{Learns the value of} \\
+  \midrule
+  SARSA (on-policy) & $r + \gamma Q(s',a')$ & the behavior policy, including exploration \\
+  Q-learning (off-policy) & $r + \gamma \max_{a'} Q(s',a')$ & the greedy policy, while behaving differently \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{CliffWalking example.} Q-learning learns the shorter path along the cliff edge.
+It can earn less while training, because random exploratory steps sometimes fall off.
+SARSA accounts for those slips and usually prefers a safer path.
+
+\subsection{Exploration: $\varepsilon$-Greedy}
+
+Take a random action with probability $\varepsilon$; otherwise take
+$\argmax_a Q(s,a)$. Without exploration, the agent can get stuck on an action that
+only looks best.
+
+\section{Eligibility Traces: SARSA($\lambda$)}
+
+\textbf{Problem:} one-step TD moves reward information back only one state per update.
+
+\textbf{Idea:} a trace $e(s,a)$ tracks recently visited state-action pairs, so one TD
+error updates all of them. At each step:
+\begin{align*}
+  \delta &= r + \gamma Q(s',a') - Q(s,a), \\
+  e(s,a) &\leftarrow e(s,a) + 1.
+\end{align*}
+Then, for all state-action pairs:
+\begin{align*}
+  Q &\leftarrow Q + \alpha\, \delta\, e, \\
+  e &\leftarrow \gamma \lambda\, e.
+\end{align*}
+
+\begin{itemize}
+  \item Reset $e$ to $0$ at the start of each episode.
+  \item $\lambda = 0$ gives one-step SARSA.
+  \item $\lambda \to 1$ approaches full-episode returns.
+  \item Larger $\lambda$ spreads reward back faster, but updates usually have higher variance.
+\end{itemize}
+
+\section{Worked Example}
+
+Start at state $A$, with $\gamma = 0.9$ and two actions:
+\begin{itemize}
+  \item \textbf{Shortcut:} get $+1$ and the game ends.
+  \item \textbf{Walk:} get $0$. Reach $B$ with probability $0.8$, or fall into a pit
+        with probability $0.2$, which ends the game.
+\end{itemize}
+From $B$, the only action gives $+10$ and the game ends, so $V(B) = 10$.
+
+\textbf{Bellman.}
+\begin{align*}
+  Q(A, \text{walk}) &= 0.8\,(0 + 0.9 \times 10) + 0.2\,(0 + 0.9 \times 0) = 7.2, \\
+  Q(A, \text{shortcut}) &= 1.
+\end{align*}
+
+\textbf{Evaluate a 50/50 policy.}
+$V(A) = 0.5 \times 7.2 + 0.5 \times 1 = 4.1$.
+
+\textbf{Improve.} Walk ($7.2$) beats shortcut ($1$), so always walk. Now $V(A) = 7.2$,
+and improving again changes nothing, so this policy is optimal.
+
+\textbf{Effect of $\gamma$.} At $\gamma = 0.05$,
+$Q(A, \text{walk}) = 0.8 \times 0.05 \times 10 = 0.4 < 1$, so shortcut becomes best.
+
+\textbf{TD learning.} Without knowing the $80/20$ split, sample transitions. With
+$\alpha = 0.1$, $Q(A, \text{walk})$ starting at $0$, and $Q(B) = 10$ already known:
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  \textbf{What happened} & \textbf{Target} & \textbf{New $Q(A, \text{walk})$} \\
+  \midrule
+  Reached $B$ & $0 + 0.9 \times 10 = 9$ & $0 + 0.1\,(9 - 0) = 0.9$ \\
+  Fell in the pit & $0$ & $0.9 + 0.1\,(0 - 0.9) = 0.81$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Over many tries, $Q(A, \text{walk})$ settles near $7.2$: the same answer as Bellman,
+without ever seeing $T$.
+
+\section{Main Takeaways}
+
+\begin{enumerate}
+  \item Bellman recursion is the foundation of everything here.
+  \item Planning computes expected values using known $T$ and $R$.
+  \item TD learning replaces that expectation with samples.
+  \item Control means improving behavior from value estimates: greedy when planning,
+        $\varepsilon$-greedy when learning.
+  \item Tabular methods store one value per state or state-action pair, so they do not
+        generalize between states. Later deep RL methods like DQN replace this table
+        with a neural network.
+\end{enumerate}
+
+\end{document}
